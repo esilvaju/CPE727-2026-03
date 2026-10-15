@@ -1,0 +1,6 @@
+numpy
+matplotlib
+torch --index-url https://pytorch.org
+scikit-learn
+scipy
+pandas
