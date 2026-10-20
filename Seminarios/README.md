@@ -40,7 +40,7 @@ O material de cada seminário deve, quando aplicável:
 - explicar os conceitos e métodos principais;
 - discutir aplicações, resultados e limitações;
 - incluir referências bibliográficas e links para as fontes;
-- identificar claramente os autores e a contribuição de cada integrante.
+- incluir exemplos em python de preferência com DockerFile (com documentação para execução)
 
 ## Como contribuir
 
