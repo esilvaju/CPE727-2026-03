@@ -20,10 +20,9 @@ Seminarios/
         ├── codigos.ipynb
         ├── libs.py
         └── DockerFile
-	
 ```
 
-Os arquivos podem incluir slides, códigos , dados de exemplo e referências. Não inclua dados pessoais, materiais protegidos por direitos autorais ou arquivos grandes que não sejam necessários para compreender o trabalho.
+Os arquivos podem incluir slides, códigos de exemplo e referências. Não inclua dados pessoais, materiais protegidos por direitos autorais ou arquivos grandes que não sejam necessários para compreender o seminário/trabalho.
 
 ## Cadastro dos seminários
 
