@@ -14,11 +14,11 @@ Seminarios/
 └── tema-do-seminario/
 	├── README.md
 	├── slides.pdf
-    ├── main.tex
-    ├── exemplos
-    ├──── codigos.ipynb
-    ├──── libs.py
-    ├──── DockerFile
+        ├── main.tex
+        ├── exemplos
+        ├──── codigos.ipynb
+        ├──── libs.py
+        ├──── DockerFile
 	└── referencias.bib
 ```
 
