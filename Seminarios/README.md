@@ -14,7 +14,7 @@ Seminarios/
 └── tema-do-seminario/
 	├── README.md
 	├── slides.pdf
-    ├── referencias.bib
+        ├── referencias.bib
         ├── main.tex
         ├── exemplos
         ├──── codigos.ipynb
