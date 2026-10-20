@@ -12,14 +12,14 @@ Cada grupo ou aluno deve criar uma pasta própria para o seminário, usando um n
 Seminarios/
 ├── README.md
 └── tema-do-seminario/
-	├── README.md
-	├── slides.pdf
-        ├── referencias.bib
-        ├── main.tex
-        ├── exemplos
-        ├──── codigos.ipynb
-        ├──── libs.py
-        ├──── DockerFile
+    ├── README.md
+    ├── slides.pdf
+    ├── referencias.bib
+    ├── main.tex
+    └── exemplos/
+        ├── codigos.ipynb
+        ├── libs.py
+        └── DockerFile
 	
 ```
 
