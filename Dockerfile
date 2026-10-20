@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Altere para o nome do arquivo que você está executando (teste.py)
-CMD ["python", "teste.py"]
+CMD ["python", "executaExemplos.py"]
