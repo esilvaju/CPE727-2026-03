@@ -30,7 +30,7 @@ Atualize a tabela abaixo ao adicionar ou alterar um seminário. Preencha os camp
 
 | Tema | Aluno(s) | Data | Materiais |
 |---|---|---|---|
-| *A definir* | *A definir* | *A definir* | — |
+| DeepNN | Gabriel Lisboa | 20/10 | link para apresentação |
 
 ## Conteúdo recomendado
 
