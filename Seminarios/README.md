@@ -26,7 +26,7 @@ Os arquivos podem incluir slides, códigos , dados de exemplo e referências. N�
 
 ## Cadastro dos seminários
 
-Atualize a tabela abaixo ao adicionar ou alterar um seminário. Preencha os campos disponíveis e use `A definir` quando alguma informação ainda não estiver confirmada.
+Cada aluno, depois da apresentação do seminário, deve atualizar a tabela abaixo ao adicionar ou alterar o seu respectivo seminário. Preencha os campos disponíveis.
 
 | Tema | Aluno(s) | Data | Materiais |
 |---|---|---|---|
