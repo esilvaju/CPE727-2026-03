@@ -14,12 +14,13 @@ Seminarios/
 └── tema-do-seminario/
 	├── README.md
 	├── slides.pdf
+    ├── referencias.bib
         ├── main.tex
         ├── exemplos
         ├──── codigos.ipynb
         ├──── libs.py
         ├──── DockerFile
-	└── referencias.bib
+	
 ```
 
 Os arquivos podem incluir slides, códigos , dados de exemplo e referências. Não inclua dados pessoais, materiais protegidos por direitos autorais ou arquivos grandes que não sejam necessários para compreender o trabalho.
