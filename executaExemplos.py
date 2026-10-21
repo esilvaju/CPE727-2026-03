@@ -4,6 +4,6 @@ import matplotlib
 import sklearn
 import scipy
 import pandas as pd
-import exemplosSin
+import exemplos_sin
 
-exemplosSin.executar()
+exemplos_sin.executar()
