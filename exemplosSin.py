@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import torch
 from torch import nn
@@ -14,19 +16,7 @@ lambda_l2 = 5e-3
 lambda_l1 = 1.0082e-3
 max_norm_coluna = 5e-1
 
-# Reprodutibilidade
-np.random.seed(42)
-torch.manual_seed(42)
-
-# Dataset: pontos igualmente distribuídos entre 0 e 2*pi
-x = np.linspace(0, 2 * np.pi, N, dtype=np.float32)
-y = np.sin(x) + np.random.normal(0, sigma, N).astype(np.float32)
-
-X = torch.from_numpy(x).reshape(-1, 1)
-Y = torch.from_numpy(y).reshape(-1, 1)
-
-
-def criar_modelo(n):
+def criar_modelo(n, depth):
     camadas = []
     tamanho_entrada = 1
     ativacao = nn.Tanh()
@@ -39,12 +29,14 @@ def criar_modelo(n):
     return nn.Sequential(*camadas)
 
 
-def treinar_modelo(n, usar_l2=False, usar_l1=False, usar_projecao=False):
+def treinar_modelo(
+    n, X, Y, depth, usar_l2=False, usar_l1=False, usar_projecao=False
+):
     # A mesma semente permite comparar os modelos de 15 neurônios
     # com a mesma inicialização.
     torch.manual_seed(123)
 
-    modelo = criar_modelo(n)
+    modelo = criar_modelo(n, depth)
     if usar_l2:
         otimizador = torch.optim.Adam(
             modelo.parameters(),
@@ -104,86 +96,9 @@ def treinar_modelo(n, usar_l2=False, usar_l1=False, usar_projecao=False):
     return modelo
 
 
-# Treina os cinco modelos
-configuracoes = [
-    (f"n=1, depth={depth}, epochs={epochs}", 1, False, False, False),
-    (f"n=15, depth={depth}, epochs={epochs}", 15, False, False, False),
-    (f"n=15, depth={depth}, epochs={epochs}, regularização L2", 15, True, False, False),
-    (f"n=15, depth={depth}, epochs={epochs}, regularização L1", 15, False, True, False),
-    (f"n=15, depth={depth}, projeção L2 por coluna", 15, False, False, True),
-]
-
-modelos = [
-    (titulo, treinar_modelo(n, usar_l2, usar_l1, usar_projecao))
-    for titulo, n, usar_l2, usar_l1, usar_projecao in configuracoes
-]
-
-# Predições em uma grade densa
-x_plot = np.linspace(0, 2 * np.pi, 500, dtype=np.float32)
-X_plot = torch.from_numpy(x_plot).reshape(-1, 1)
-y_original = np.sin(x_plot)
-Y_plot = torch.from_numpy(y_original).reshape(-1, 1)
-
-# Erros MSE dos quatro modelos
-criterio_erro = nn.MSELoss()
-print("\nErros dos modelos (MSE)")
-print(f"{'Modelo':<40} {'Treinamento':>14} {'Teste':>14}")
-
-for titulo, modelo in modelos:
-    modelo.eval()
-    with torch.no_grad():
-        erro_treino = criterio_erro(modelo(X), Y).item()
-        erro_teste = criterio_erro(modelo(X_plot), Y_plot).item()
-    print(f"{titulo:<40} {erro_treino:>14.6f} {erro_teste:>14.6f}")
-
-print("\nPesos e vieses (ganhos) das redes")
-for titulo, modelo in modelos[:3]:
-    print(f"\n{titulo}")
-    numero_camada = 0
-    soma_normas_pesos = 0.0
-    for camada in modelo.modules():
-        if isinstance(camada, nn.Linear):
-            numero_camada += 1
-            #print(f"  Camada linear {numero_camada}:")
-            soma_normas_pesos += torch.linalg.matrix_norm(
-                camada.weight.detach(), ord=2
-            ).item()**2
-            #if camada.bias is not None:
-                #print(f"    Vieses/ganhos: {camada.bias.detach().cpu().numpy()}")
-    print(f"  Soma das normas 2 dos pesos: {soma_normas_pesos:.6f}")
-
-for titulo, modelo in modelos[3:4]:
-    print(f"\n{titulo}")
-    numero_camada = 0
-    soma_norma_1 = 0.0
-    for camada in modelo.modules():
-        if isinstance(camada, nn.Linear):
-            numero_camada += 1
-            #print(f"  Camada linear {numero_camada}:")
-            soma_norma_1 += camada.weight.abs().sum().item()
-            #if camada.bias is not None:
-                #print(f"    Vieses/ganhos: {camada.bias.detach().cpu().numpy()}")
-    print(f"  Soma das normas 1 dos pesos: {soma_norma_1:.6f}")
-
-for titulo, modelo in modelos[4:]:
-    maiores_normas_colunas = [
-        torch.linalg.vector_norm(camada.weight.detach(), ord=2, dim=0).max().item()
-        for camada in modelo.modules()
-        if isinstance(camada, nn.Linear)
-    ]
-    print(f"\n{titulo}")
-    print(f"  Maior norma L2 de coluna: {max(maiores_normas_colunas):.6f}")
-
-
-# Calcula as predições uma vez e reutiliza nas três figuras
-predicoes = []
-for _, modelo in modelos:
-    modelo.eval()
-    with torch.no_grad():
-        y_predito = modelo(X_plot).numpy().ravel()
-    predicoes.append(y_predito)
-
-def plotar_modelos(indices, titulo_figura, figsize):
+def plotar_modelos(
+    indices, titulo_figura, figsize, modelos, x, y, x_plot, y_original, predicoes
+):
     fig, eixos = plt.subplots(1, len(indices), figsize=figsize, sharey=True)
     for eixo, indice in zip(eixos, indices):
         titulo, _ = modelos[indice]
@@ -197,12 +112,135 @@ def plotar_modelos(indices, titulo_figura, figsize):
     eixos[0].set_ylabel("y")
     fig.suptitle(titulo_figura)
     fig.tight_layout()
+    return fig
 
-# 1) Dois modelos sem regularização
-plotar_modelos([0, 1], "Modelos sem regularização", (11, 5))
-# 2) Os três primeiros modelos n=15: sem regularização, L1 e L2
-plotar_modelos([1, 3, 2], "Modelos n=15: sem regularização, L1 e L2", (16, 5))
-# 3) Modelos n=15 com L1, L2 e projeção por coluna
-plotar_modelos([3, 2, 4], "Modelos n=15 com regularização", (16, 5))
 
-plt.show()
+def executar():
+    # Reprodutibilidade
+    np.random.seed(42)
+    torch.manual_seed(42)
+
+    # Dataset: pontos igualmente distribuídos entre 0 e 2*pi
+    x = np.linspace(0, 2 * np.pi, N, dtype=np.float32)
+    y = np.sin(x) + np.random.normal(0, sigma, N).astype(np.float32)
+
+    X = torch.from_numpy(x).reshape(-1, 1)
+    Y = torch.from_numpy(y).reshape(-1, 1)
+
+    # Treina os cinco modelos
+    configuracoes = [
+        (f"n=1, depth={depth}, epochs={epochs}", 1, False, False, False),
+        (f"n=15, depth={depth}, epochs={epochs}", 15, False, False, False),
+        (f"n=15, depth={depth}, epochs={epochs}, regularização L2", 15, True, False, False),
+        (f"n=15, depth={depth}, epochs={epochs}, regularização L1", 15, False, True, False),
+        (f"n=15, depth={depth}, projeção L2 por coluna", 15, False, False, True),
+    ]
+
+    modelos = [
+        (
+            titulo,
+            treinar_modelo(n, X, Y, depth, usar_l2, usar_l1, usar_projecao),
+        )
+        for titulo, n, usar_l2, usar_l1, usar_projecao in configuracoes
+    ]
+
+    # Predições em uma grade densa
+    x_plot = np.linspace(0, 2 * np.pi, 500, dtype=np.float32)
+    X_plot = torch.from_numpy(x_plot).reshape(-1, 1)
+    y_original = np.sin(x_plot)
+    Y_plot = torch.from_numpy(y_original).reshape(-1, 1)
+
+    # Erros MSE dos quatro modelos
+    criterio_erro = nn.MSELoss()
+    print("\nErros dos modelos (MSE)")
+    print(f"{'Modelo':<40} {'Treinamento':>14} {'Teste':>14}")
+
+    for titulo, modelo in modelos:
+        modelo.eval()
+        with torch.no_grad():
+            erro_treino = criterio_erro(modelo(X), Y).item()
+            erro_teste = criterio_erro(modelo(X_plot), Y_plot).item()
+        print(f"{titulo:<40} {erro_treino:>14.6f} {erro_teste:>14.6f}")
+
+    print("\nPesos e vieses (ganhos) das redes")
+    for titulo, modelo in modelos[:3]:
+        print(f"\n{titulo}")
+        numero_camada = 0
+        soma_normas_pesos = 0.0
+        for camada in modelo.modules():
+            if isinstance(camada, nn.Linear):
+                numero_camada += 1
+                #print(f"  Camada linear {numero_camada}:")
+                soma_normas_pesos += torch.linalg.matrix_norm(
+                    camada.weight.detach(), ord=2
+                ).item()**2
+                #if camada.bias is not None:
+                    #print(f"    Vieses/ganhos: {camada.bias.detach().cpu().numpy()}")
+        print(f"  Soma das normas 2 dos pesos: {soma_normas_pesos:.6f}")
+
+    for titulo, modelo in modelos[3:4]:
+        print(f"\n{titulo}")
+        numero_camada = 0
+        soma_norma_1 = 0.0
+        for camada in modelo.modules():
+            if isinstance(camada, nn.Linear):
+                numero_camada += 1
+                #print(f"  Camada linear {numero_camada}:")
+                soma_norma_1 += camada.weight.abs().sum().item()
+                #if camada.bias is not None:
+                    #print(f"    Vieses/ganhos: {camada.bias.detach().cpu().numpy()}")
+        print(f"  Soma das normas 1 dos pesos: {soma_norma_1:.6f}")
+
+    for titulo, modelo in modelos[4:]:
+        maiores_normas_colunas = [
+            torch.linalg.vector_norm(camada.weight.detach(), ord=2, dim=0).max().item()
+            for camada in modelo.modules()
+            if isinstance(camada, nn.Linear)
+        ]
+        print(f"\n{titulo}")
+        print(f"  Maior norma L2 de coluna: {max(maiores_normas_colunas):.6f}")
+
+    # Calcula as predições uma vez e reutiliza nas três figuras
+    predicoes = []
+    for _, modelo in modelos:
+        modelo.eval()
+        with torch.no_grad():
+            y_predito = modelo(X_plot).numpy().ravel()
+        predicoes.append(y_predito)
+
+    figuras = [
+        # 1) Dois modelos sem regularização
+        plotar_modelos(
+            [0, 1], "Modelos sem regularização", (11, 5),
+            modelos, x, y, x_plot, y_original, predicoes,
+        ),
+        # 2) Os três primeiros modelos n=15: sem regularização, L1 e L2
+        plotar_modelos(
+            [1, 3, 2], "Modelos n=15: sem regularização, L1 e L2", (16, 5),
+            modelos, x, y, x_plot, y_original, predicoes,
+        ),
+        # 3) Modelos n=15 com L1, L2 e projeção por coluna
+        plotar_modelos(
+            [3, 2, 4], "Modelos n=15 com regularização", (16, 5),
+            modelos, x, y, x_plot, y_original, predicoes,
+        ),
+    ]
+
+    
+    pasta_graficos = Path(__file__).resolve().parent / "graficos"
+    pasta_graficos.mkdir(exist_ok=True)
+    nomes_arquivos = [
+        "modelos_sem_regularizacao.pdf",
+        "modelos_n15_l1_l2.pdf",
+        "modelos_n15_regularizacao.pdf",
+    ]
+    for figura, nome_arquivo in zip(figuras, nomes_arquivos):
+        figura.savefig(pasta_graficos / nome_arquivo)
+        plt.close(figura)
+    print(f"\nGráficos salvos em PDF em: {pasta_graficos}")
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    executar()

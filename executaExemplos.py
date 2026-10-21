@@ -4,10 +4,6 @@ import matplotlib
 import sklearn
 import scipy
 import pandas as pd
+import exemplosSin
 
-print("🚀 Sucesso! Todas as dependências foram importadas dentro do Docker:")
-print(f"-> Versão do PyTorch: {torch.__version__}")
-print(f"-> Versão do NumPy: {np.__version__}")
-print(f"-> Versão do Pandas: {pd.__version__}")
-
-
+exemplosSin.executar()
