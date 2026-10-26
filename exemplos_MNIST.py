@@ -392,6 +392,7 @@ def plotar_amostras(modelos, dados_teste, indices):
         botao.on_clicked(sortear_outras_amostras)
 
     atualizar_figuras(indices_atuais)
+    return [figura for _, figura, _, _ in figuras]
 
 
 def plotar_comparacao(resultados):
@@ -419,6 +420,7 @@ def plotar_comparacao(resultados):
     eixo.grid(axis="y", alpha=0.3)
 
     fig.tight_layout()
+    return fig
 
 
 def executar():
@@ -496,8 +498,22 @@ def executar():
             f"{resultado['acuracia_teste'] * 100:>14.2f}%"
         )
 
-    plotar_amostras(modelos_treinados, dados_teste, indices_amostras)
-    plotar_comparacao(resultados)
+    figuras_amostras = plotar_amostras(
+        modelos_treinados, dados_teste, indices_amostras
+    )
+    figura_comparacao = plotar_comparacao(resultados)
+
+    pasta_graficos = Path(__file__).resolve().parent / "graficos"
+    pasta_graficos.mkdir(exist_ok=True)
+    nomes_amostras = [
+        "mnist_amostras_ruido_entradas.pdf",
+        "mnist_amostras_ruido_pesos.pdf",
+        "mnist_amostras_dropout.pdf",
+    ]
+    for figura, nome_arquivo in zip(figuras_amostras, nomes_amostras):
+        figura.savefig(pasta_graficos / nome_arquivo)
+    figura_comparacao.savefig(pasta_graficos / "mnist_comparacao_acuracia.pdf")
+    print(f"\nGráficos do MNIST salvos em PDF em: {pasta_graficos}")
     plt.show()
 
 
