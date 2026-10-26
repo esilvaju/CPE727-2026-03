@@ -6,10 +6,17 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.widgets import Button
 import numpy as np
-import struct
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.dataloaders.MNISTLoader.mnist_loader import (
+    adicionar_ruido_gaussiano,
+    carregar_dados,
+    criar_dataloader,
+)
+
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
 
 
 N = 64
@@ -23,38 +30,6 @@ COPIAS_RUIDO_TESTE = 2
 DESVIO_PADRAO_RUIDO_PESOS = 0.02
 PROBABILIDADE_DROPOUT = 0.2
 
-def ler_idx1_ubyte(caminho_arquivo):
-    with open(caminho_arquivo, 'rb') as f:
-        # Lê o cabeçalho: magic number (4 bytes) e número de itens (4 bytes) -> formato big-endian (>II)
-        magic, num_items = struct.unpack('>II', f.read(8))
-        
-        # Verifica o magic number padrão para idx1 (geralmente 2049)
-        if magic != 2049:
-            raise ValueError(f'Magic number inválido: {magic}')
-        
-        # Lê o restante dos dados binários como um array NumPy do tipo uint8
-        rotulos = np.fromfile(f, dtype=np.uint8)
-        
-    return rotulos
-
-def ler_idx3_ubyte(caminho_arquivo):
-    with open(caminho_arquivo, 'rb') as f:
-        # Lê o cabeçalho: magic number (4 bytes), número de imagens (4 bytes),
-        # número de linhas (4 bytes) e número de colunas (4 bytes) -> formato big-endian (>IIII)
-        magic, num_images, rows, cols = struct.unpack('>IIII', f.read(16))
-        
-        # Verifica o magic number padrão para idx3 (geralmente 2051 ou 0x00000803)
-        if magic != 2051:
-            raise ValueError(f'Magic number inválido: {magic}')
-        
-        # Lê o restante dos dados binários como um array NumPy do tipo uint8
-        dados = np.fromfile(f, dtype=np.uint8)
-        
-        # Redimensiona o array para o formato (número de imagens, altura, largura)
-        imagens = dados.reshape(num_images, rows, cols)
-        
-    return imagens
-
 def criar_modelo(n, profundidade=PROFUNDIDADE, probabilidade_dropout=0.0):
     camadas = []
     tamanho_entrada = 28 * 28
@@ -67,46 +42,6 @@ def criar_modelo(n, profundidade=PROFUNDIDADE, probabilidade_dropout=0.0):
 
     camadas.append(nn.Linear(tamanho_entrada, 10))
     return nn.Sequential(*camadas)
-
-
-def carregar_dados():
-    pasta_dados = Path(__file__).resolve().parent
-    X_train = ler_idx3_ubyte(pasta_dados / "train-images.idx3-ubyte")
-    X_test = ler_idx3_ubyte(pasta_dados / "t10k-images.idx3-ubyte")
-    y_train = ler_idx1_ubyte(pasta_dados / "train-labels.idx1-ubyte")
-    y_test = ler_idx1_ubyte(pasta_dados / "t10k-labels.idx1-ubyte")
-
-    X_train = torch.from_numpy(
-        X_train.reshape(len(X_train), -1).astype(np.float32) / 255.0
-    )
-    X_test = torch.from_numpy(
-        X_test.reshape(len(X_test), -1).astype(np.float32) / 255.0
-    )
-    y_train = torch.from_numpy(y_train.astype(np.int64))
-    y_test = torch.from_numpy(y_test.astype(np.int64))
-
-    return TensorDataset(X_train, y_train), TensorDataset(X_test, y_test)
-
-
-def adicionar_ruido_gaussiano(
-    dados, quantidade_copias, seed, sigma, incluir_originais=False
-):
-    imagens, rotulos = dados.tensors
-    gerador = torch.Generator().manual_seed(seed)
-    ruido = torch.randn(
-        (quantidade_copias, *imagens.shape),
-        generator=gerador,
-        dtype=imagens.dtype,
-    ) * sigma
-    imagens_com_ruido = ruido.add_(imagens.unsqueeze(0)).clamp_(0.0, 1.0)
-    imagens_com_ruido = imagens_com_ruido.reshape(-1, imagens.shape[1])
-    rotulos_com_ruido = rotulos.repeat(quantidade_copias)
-
-    if incluir_originais:
-        imagens_com_ruido = torch.cat((imagens, imagens_com_ruido))
-        rotulos_com_ruido = torch.cat((rotulos, rotulos_com_ruido))
-
-    return TensorDataset(imagens_com_ruido, rotulos_com_ruido)
 
 
 def prever_com_ruido_nos_pesos(modelo, entradas, sigma):
@@ -211,7 +146,9 @@ def salvar_modelo(configuracao, modelo, resultado):
     print(f"Modelo salvo: {caminho}", flush=True)
 
 
-def treinar_modelo(configuracao, dados_treino, dados_teste):
+def treinar_modelo(
+    configuracao, carregador_treino, carregador_treino_avaliacao, carregador_teste
+):
     torch.manual_seed(SEMENTE)
     dispositivo = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     modelo = criar_modelo(
@@ -219,15 +156,6 @@ def treinar_modelo(configuracao, dados_treino, dados_teste):
         configuracao.get("profundidade", PROFUNDIDADE),
         configuracao.get("probabilidade_dropout", 0.0),
     ).to(dispositivo)
-
-    gerador = torch.Generator().manual_seed(SEMENTE)
-    carregador_treino = DataLoader(
-        dados_treino, batch_size=BATCH_SIZE, shuffle=True, generator=gerador
-    )
-    carregador_treino_avaliacao = DataLoader(
-        dados_treino, batch_size=512, shuffle=False
-    )
-    carregador_teste = DataLoader(dados_teste, batch_size=512, shuffle=False)
 
     criterio = nn.CrossEntropyLoss()
     otimizador = torch.optim.Adam(
@@ -425,7 +353,9 @@ def plotar_comparacao(resultados):
 
 def executar():
     torch.manual_seed(SEMENTE)
-    dados_treino, dados_teste = carregar_dados()
+    _, _, dados_treino, dados_teste = carregar_dados(
+        Path(__file__).resolve().parent, BATCH_SIZE
+    )
     rng = np.random.default_rng(SEMENTE)
     indices_amostras = rng.choice(len(dados_teste), size=96, replace=False)
 
@@ -480,8 +410,18 @@ def executar():
 
         modelo_salvo = carregar_modelo_salvo(configuracao)
         if modelo_salvo is None:
+            carregador_treino_modelo = criar_dataloader(
+                dados_treino_modelo, BATCH_SIZE, shuffle=True, seed=SEMENTE
+            )
+            carregador_treino_avaliacao = criar_dataloader(
+                dados_treino_modelo, 512
+            )
+            carregador_teste_modelo = criar_dataloader(dados_teste_modelo, 512)
             modelo, resultado = treinar_modelo(
-                configuracao, dados_treino_modelo, dados_teste_modelo
+                configuracao,
+                carregador_treino_modelo,
+                carregador_treino_avaliacao,
+                carregador_teste_modelo,
             )
             salvar_modelo(configuracao, modelo, resultado)
         else:

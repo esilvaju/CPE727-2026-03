@@ -1,5 +1,9 @@
 from pathlib import Path
 from copy import deepcopy
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.dataloaders.SinLoader.sin_loader import criar_dataloaders
 
 import numpy as np
 import torch
@@ -9,7 +13,7 @@ import matplotlib.pyplot as plt
 
 # Parâmetros do dataset e do treinamento
 N = 20
-sigma = 0.25
+sigma = 0.3
 depth = 5
 epochs = 1000
 learning_rate = 0.01
@@ -33,8 +37,8 @@ def criar_modelo(n, depth):
 
 
 def treinar_modelo(
-    n, X, Y, depth, usar_l2=False, usar_l1=False, usar_projecao=False,
-    X_validacao=None, Y_validacao=None, epochs_treinamento=None,
+    n, carregador_treino, carregador_validacao, depth, usar_l2=False,
+    usar_l1=False, usar_projecao=False, epochs_treinamento=None,
 ):
     # A mesma semente permite comparar os modelos de 15 neurônios
     # com a mesma inicialização.
@@ -53,7 +57,7 @@ def treinar_modelo(
             lr=learning_rate,
         )
     criterio = nn.MSELoss()
-    usar_parada_antecipada = X_validacao is not None
+    usar_parada_antecipada = carregador_validacao is not None
     numero_epochs = epochs if epochs_treinamento is None else epochs_treinamento
 
     regularizacao = (
@@ -72,34 +76,36 @@ def treinar_modelo(
     avaliacoes_sem_melhora = 0
     if usar_parada_antecipada:
         with torch.no_grad():
-            melhor_erro_validacao = criterio(
-                modelo(X_validacao), Y_validacao
-            ).item()
+            perdas = [criterio(modelo(entradas), alvos).item()
+                      for entradas, alvos in carregador_validacao]
+            melhor_erro_validacao = sum(perdas) / len(perdas)
         melhor_estado = deepcopy(modelo.state_dict())
 
     for indice_epoch in range(numero_epochs):
-        previsoes = modelo(X)
-        perda = criterio(previsoes, Y)
-        if usar_l1:
-            penalidade_l1 = sum(
-                camada.weight.abs().sum()
-                for camada in modelo.modules()
-                if isinstance(camada, nn.Linear)
-            )
-            perda = perda + lambda_l1 * penalidade_l1
-
-        otimizador.zero_grad()
-        perda.backward()
-        otimizador.step()
-        if usar_projecao:
-            with torch.no_grad():
-                for camada in modelo.modules():
-                    if isinstance(camada, nn.Linear):
-                        normas = torch.linalg.vector_norm(
-                            camada.weight, ord=2, dim=0, keepdim=True
-                        )
-                        escalas = (max_norm_coluna / (normas + 1e-12)).clamp(max=1.0)
-                        camada.weight.mul_(escalas)
+        perda = 0.0
+        for entradas, alvos in carregador_treino:
+            perda_lote = criterio(modelo(entradas), alvos)
+            if usar_l1:
+                penalidade_l1 = sum(
+                    camada.weight.abs().sum()
+                    for camada in modelo.modules()
+                    if isinstance(camada, nn.Linear)
+                )
+                perda_lote = perda_lote + lambda_l1 * penalidade_l1
+            otimizador.zero_grad()
+            perda_lote.backward()
+            otimizador.step()
+            if usar_projecao:
+                with torch.no_grad():
+                    for camada in modelo.modules():
+                        if isinstance(camada, nn.Linear):
+                            normas = torch.linalg.vector_norm(
+                                camada.weight, ord=2, dim=0, keepdim=True
+                            )
+                            escalas = (max_norm_coluna / (normas + 1e-12)).clamp(max=1.0)
+                            camada.weight.mul_(escalas)
+            perda += perda_lote.item()
+        perda /= len(carregador_treino)
 
         epoch_atual = indice_epoch + 1
         if usar_parada_antecipada and (
@@ -109,9 +115,9 @@ def treinar_modelo(
             numero_avaliacoes += 1
             modelo.eval()
             with torch.no_grad():
-                erro_validacao = criterio(
-                    modelo(X_validacao), Y_validacao
-                ).item()
+                perdas = [criterio(modelo(entradas), alvos).item()
+                          for entradas, alvos in carregador_validacao]
+                erro_validacao = sum(perdas) / len(perdas)
             modelo.train()
            # print(f'Epoch {epoch_atual:4d} | Avaliação {numero_avaliacoes:3d} | Erro validação: {erro_validacao:.6f}')
             if erro_validacao < melhor_erro_validacao:
@@ -137,7 +143,7 @@ def treinar_modelo(
             barra = "=" * preenchido + " " * (largura_barra - preenchido)
             print(
                 f"\rTreinando {nome_modelo}: [{barra}] "
-                f"{progresso:6.1%} | perda: {perda.item():.6f}",
+                f"{progresso:6.1%} | perda: {perda:.6f}",
                 end="\n" if epoch_atual == numero_epochs else "",
                 flush=True,
             )
@@ -178,23 +184,11 @@ def executar():
     np.random.seed(42)
     torch.manual_seed(42)
 
-    # Dataset: pontos igualmente distribuídos entre 0 e 2*pi
-    x = np.linspace(0, 2 * np.pi, N, dtype=np.float32)
-    y = np.sin(x) + np.random.normal(0, sigma, N).astype(np.float32)
-
-    X = torch.from_numpy(x).reshape(-1, 1)
-    Y = torch.from_numpy(y).reshape(-1, 1)
-
-    # A divisão 70/30 é exclusiva do modelo com parada antecipada.
-    gerador_divisao = torch.Generator().manual_seed(43)
-    indices = torch.randperm(X.size(0), generator=gerador_divisao)
-    tamanho_treino = int(0.7 * X.size(0))
-    indices_treino = indices[:tamanho_treino]
-    indices_validacao = indices[tamanho_treino:]
-    X_treino_parada = X[indices_treino]
-    Y_treino_parada = Y[indices_treino]
-    X_validacao = X[indices_validacao]
-    Y_validacao = Y[indices_validacao]
+    carregador_treino, carregador_validacao, carregador_completo = criar_dataloaders(
+        N, sigma, 45
+    )
+    X, Y = carregador_completo.dataset.entradas, carregador_completo.dataset.alvos
+    x, y = X.numpy().ravel(), Y.numpy().ravel()
 
     # Treina os seis modelos
     configuracoes = [
@@ -215,33 +209,25 @@ def executar():
         if usar_parada:
             _, melhor_epoch = treinar_modelo(
                 n,
-                X_treino_parada,
-                Y_treino_parada,
+                carregador_treino,
+                carregador_validacao,
                 depth,
                 usar_l2,
                 usar_l1,
                 usar_projecao,
-                X_validacao,
-                Y_validacao,
             )
             print(
                 f"\nRetreinando do zero com todo o conjunto por "
                 f"{melhor_epoch} epochs."
             )
             modelo, _ = treinar_modelo(
-                n,
-                X,
-                Y,
-                depth,
-                usar_l2,
-                usar_l1,
-                usar_projecao,
-                epochs_treinamento=melhor_epoch,
+                n, carregador_completo, None, depth, usar_l2, usar_l1,
+                usar_projecao, epochs_treinamento=melhor_epoch,
             )
             modelos.append((titulo, modelo, melhor_epoch))
         else:
             modelo, numero_epochs = treinar_modelo(
-                n, X, Y, depth, usar_l2, usar_l1, usar_projecao
+                n, carregador_completo, None, depth, usar_l2, usar_l1, usar_projecao
             )
             modelos.append((titulo, modelo, numero_epochs))
 

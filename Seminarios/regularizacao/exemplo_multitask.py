@@ -1,5 +1,10 @@
 import numpy as np
-import pandas as pd
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.dataloaders.MultitaskLoader.multitask_loader import preparar_dados
+
 import torch
 from sklearn.metrics import (
     accuracy_score,
@@ -10,10 +15,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
 
 
 # Parâmetros do dataset e do treinamento
@@ -26,19 +28,6 @@ TAXA_APRENDIZADO = 0.001
 PESO_DECAY = 0
 LAMBDA_CLASSIFICACAO = 1.0
 ATIVACAO_COMPARTILHADA = nn.ReLU
-
-
-class CustomDataset(Dataset):
-    def __init__(self, atributos, glicose, diabetes):
-        self.atributos = torch.as_tensor(atributos, dtype=torch.float32)
-        self.glicose = torch.as_tensor(glicose, dtype=torch.float32).reshape(-1, 1)
-        self.diabetes = torch.as_tensor(diabetes, dtype=torch.float32).reshape(-1, 1)
-
-    def __len__(self):
-        return len(self.atributos)
-
-    def __getitem__(self, indice):
-        return self.atributos[indice], self.glicose[indice], self.diabetes[indice]
 
 
 class RedeMultitarefa(nn.Module):
@@ -77,97 +66,6 @@ class RedeMultitarefa(nn.Module):
         return self.cabeca_glicose(representacao), self.cabeca_diabetes(
             representacao
         )
-
-
-def gerar_dataset(n_amostras=N_AMOSTRAS):
-    gerador = np.random.default_rng(SEMENTE)
-    dados = pd.DataFrame(
-        {
-            "idade": gerador.uniform(18, 80, n_amostras),
-            "imc": np.clip(gerador.normal(27, 5, n_amostras), 16, 45),
-            "pressao_sistolica": np.clip(
-                gerador.normal(122, 17, n_amostras), 85, 200
-            ),
-            "horas_exercicio": gerador.uniform(0, 10, n_amostras),
-            "historico_familiar": gerador.binomial(1, 0.3, n_amostras),
-        }
-    )
-
-    atributos_continuos = [
-        "idade",
-        "imc",
-        "pressao_sistolica",
-        "horas_exercicio",
-    ]
-    atributos_padronizados = (
-        dados[atributos_continuos] - dados[atributos_continuos].mean()
-    ) / dados[atributos_continuos].std(ddof=0)
-    fator_metabolico = (
-        0.3 * atributos_padronizados["idade"]
-        + 0.4 * atributos_padronizados["imc"]
-        + 0.3 * atributos_padronizados["pressao_sistolica"]
-        - 0.4 * atributos_padronizados["horas_exercicio"]
-        + 0.5 * dados["historico_familiar"]
-    )
-    glicose = 90 + 15 * fator_metabolico + gerador.normal(0, 8, n_amostras)
-    probabilidade_diabetes = 1 / (1 + np.exp(-fator_metabolico))
-    diabetes = (probabilidade_diabetes > 0.5).astype(np.int64)
-
-    return dados, glicose.to_numpy(dtype=np.float32), diabetes.to_numpy()
-
-
-def preparar_dados():
-    dados, glicose, diabetes = gerar_dataset()
-    indices = np.arange(len(dados))
-    indices_treino, indices_temporarios = train_test_split(
-        indices,
-        test_size=0.3,
-        random_state=SEMENTE,
-        stratify=diabetes,
-    )
-    indices_validacao, indices_teste = train_test_split(
-        indices_temporarios,
-        test_size=0.5,
-        random_state=SEMENTE,
-        stratify=diabetes[indices_temporarios],
-    )
-
-    dados_atributos = dados.to_numpy(dtype=np.float32)
-    colunas_continuas = [0, 1, 2, 3]
-    scaler_atributos = StandardScaler()
-    scaler_atributos.fit(dados_atributos[indices_treino][:, colunas_continuas])
-
-    atributos_escalados = dados_atributos.copy()
-    atributos_escalados[:, colunas_continuas] = scaler_atributos.transform(
-        dados_atributos[:, colunas_continuas]
-    )
-
-    scaler_glicose = StandardScaler()
-    scaler_glicose.fit(glicose[indices_treino].reshape(-1, 1))
-    glicose_escalada = scaler_glicose.transform(glicose.reshape(-1, 1))
-
-    conjuntos = []
-    for indices_conjunto in (indices_treino, indices_validacao, indices_teste):
-        conjuntos.append(
-            CustomDataset(
-                atributos_escalados[indices_conjunto],
-                glicose_escalada[indices_conjunto],
-                diabetes[indices_conjunto],
-            )
-        )
-
-    gerador_lotes = torch.Generator().manual_seed(SEMENTE)
-    carregadores = [
-        DataLoader(
-            conjuntos[0],
-            batch_size=TAMANHO_LOTE,
-            shuffle=True,
-            generator=gerador_lotes,
-        ),
-        DataLoader(conjuntos[1], batch_size=TAMANHO_LOTE, shuffle=False),
-        DataLoader(conjuntos[2], batch_size=TAMANHO_LOTE, shuffle=False),
-    ]
-    return carregadores, scaler_glicose
 
 
 def avaliar_perdas(modelo, carregador, criterio_glicose, criterio_diabetes, dispositivo):
@@ -304,7 +202,9 @@ def executar():
     np.random.seed(SEMENTE)
     torch.manual_seed(SEMENTE)
 
-    carregadores, scaler_glicose = preparar_dados()
+    carregadores, scaler_glicose = preparar_dados(
+        N_AMOSTRAS, SEMENTE, TAMANHO_LOTE
+    )
     print(
         "Amostras: "
         f"treino={len(carregadores[0].dataset)}, "
