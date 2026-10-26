@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from src.dataloaders.MultitaskLoader.multitask_loader import preparar_dados
 
 import torch

@@ -2,7 +2,7 @@ from pathlib import Path
 from copy import deepcopy
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from src.dataloaders.SinLoader.sin_loader import criar_dataloaders
 
 import numpy as np

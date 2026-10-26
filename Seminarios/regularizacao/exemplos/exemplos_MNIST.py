@@ -8,7 +8,7 @@ from matplotlib.widgets import Button
 import numpy as np
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from src.dataloaders.MNISTLoader.mnist_loader import (
     adicionar_ruido_gaussiano,
     carregar_dados,
