@@ -31,6 +31,7 @@ Cada aluno, depois da apresentação do seminário, deve atualizar a tabela abai
 | Tema | Aluno(s) | Data | Materiais |
 |---|---|---|---|
 | DeepNN | Gabriel Lisboa | 20/10 | link para apresentação |
+| Regularização | Matheus Sotero | 22/10 | [apresentação](https://github.com/natmourajr/CPE727-2026-03/blob/main/Seminarios/regularizacao/Regulariza%C3%A7%C3%A3o.pdf) |
 
 ## Conteúdo recomendado
 
