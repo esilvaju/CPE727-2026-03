@@ -1,0 +1,18 @@
+# Ambiente para rodar o codigos.ipynb (PyTorch em CPU + Jupyter)
+#
+#   docker build -f DockerFile -t cnn-exemplos .
+#   docker run --rm -p 8888:8888 cnn-exemplos
+#
+# e abrir o link http://127.0.0.1:8888/... que aparece no terminal.
+
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir \
+        torch==2.15.0 torchvision==0.29.2 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir numpy matplotlib jupyter
+
+WORKDIR /exemplos
+COPY codigos.ipynb libs.py ./
+
+EXPOSE 8888
+CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
