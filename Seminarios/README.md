@@ -31,8 +31,8 @@ Cada aluno, depois da apresentação do seminário, deve atualizar a tabela abai
 | Tema | Aluno(s) | Data | Materiais |
 |---|---|---|---|
 | DeepNN | Gabriel Lisboa | 20/10 | link para apresentação |
-| Regularização | Matheus Sotero | 22/10 | [apresentação](https://github.com/natmourajr/CPE727-2026-03/blob/323c363e319ff5fa2b74b6ca6335e78f8ebd1665/Seminarios/redes-neurais-convolucionais/slides.pdf) |
-| CNN | Eraldo Junior | 29/10 | [apresentação](https://github.com/natmourajr/CPE727-2026-03/blob/main/Seminarios/regularizacao/Regulariza%C3%A7%C3%A3o.pdf) |
+| Regularização | Matheus Sotero | 22/10 |  [apresentação](https://github.com/natmourajr/CPE727-2026-03/blob/main/Seminarios/regularizacao/Regulariza%C3%A7%C3%A3o.pdf) |
+| CNN | Eraldo Junior | 29/10 | [apresentação](https://github.com/natmourajr/CPE727-2026-03/blob/323c363e319ff5fa2b74b6ca6335e78f8ebd1665/Seminarios/redes-neurais-convolucionais/slides.pdf) |
 ## Conteúdo recomendado
 
 O material de cada seminário deve, quando aplicável:
